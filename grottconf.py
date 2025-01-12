@@ -38,7 +38,9 @@ class Conf :
         #Growatt server default 
         #self.growattip = "47.91.67.66"
         self.growattip = "server.growatt.com"
+        self.growattip2 = "localhost"
         self.growattport = 5279
+        self.growattport2 = 5781
 
         #MQTT default
         self.mqttip = "localhost"
@@ -232,7 +234,9 @@ class Conf :
         #print("\tmqttpsw:     \t",self.mqttpsw)                       #scramble output if tested!
         print("_Growatt server:")
         print("\tgrowattip:           \t",self.growattip)
+        print("\tgrowattip2:           \t",self.growattip2)
         print("\tgrowattport:         \t",self.growattport)
+        print("\tgrowattport2:         \t",self.growattport2)
         print("_PVOutput:")
         print("\tpvoutput:            \t",self.pvoutput)
         print("\tpvdisv1:             \t",self.pvdisv1)
@@ -375,8 +379,10 @@ class Conf :
         if config.has_option("Generic","ip"): self.grottip = config.get("Generic","ip")
         if config.has_option("Generic","port"): self.grottport = config.getint("Generic","port")
         if config.has_option("Generic","valueoffset"): self.valueoffset = config.get("Generic","valueoffset")
-        if config.has_option("Growatt","ip"): self.growattip = config.get("Growatt","ip") 
+        if config.has_option("Growatt","ip"): self.growattip = config.get("Growatt","ip")
+        if config.has_option("Growatt","ip2"): self.growattip2 = config.get("Growatt","ip2")
         if config.has_option("Growatt","port"): self.growattport = config.getint("Growatt","port")
+        if config.has_option("Growatt","port2"): self.growattport2 = config.getint("Growatt","port2")
         if config.has_option("MQTT","nomqtt"): self.nomqtt = config.get("MQTT","nomqtt")
         if config.has_option("MQTT","ip"): self.mqttip = config.get("MQTT","ip")
         if config.has_option("MQTT","port"): self.mqttport = config.getint("MQTT","port")
@@ -456,10 +462,20 @@ class Conf :
                 self.growattip = self.getenv('ggrowattip')
             except: 
                 if self.verbose : print("\nGrott Growatt server IP address env invalid")
+        if os.getenv('ggrowattip2') != None :    
+            try: 
+                ipaddress.ip_address(os.getenv('ggrowattip2'))
+                self.growattip2 = self.getenv('ggrowattip2')
+            except: 
+                if self.verbose : print("\nGrott Growatt server IP address 2 env invalid")
         if os.getenv('ggrowattport') != None :     
             if 0 <= int(os.getenv('ggrowattport')) <= 65535  :  self.growattport = int(self.getenv('ggrowattport'))
             else : 
                if self.verbose : print("\nGrott Growatt server Port address env invalid")   
+        if os.getenv('ggrowattport2') != None :     
+            if 0 <= int(os.getenv('ggrowattport2')) <= 65535  :  self.growattport2 = int(self.getenv('ggrowattport2'))
+            else : 
+               if self.verbose : print("\nGrott Growatt server Port address 2 env invalid")   
         #handle mqtt environmentals    
         if os.getenv('gnomqtt') != None :  self.nomqtt = self.getenv('gnomqtt')
         if os.getenv('gmqttip') != None :    
