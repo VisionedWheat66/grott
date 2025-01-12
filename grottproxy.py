@@ -164,23 +164,20 @@ class Proxy:
         return socket
 
     def on_accept(self,conf):
-        forward1 = Forward().start(self.forward_to[0][0], self.forward_to[0][1])
+        # Try local server first, if working then proceed to remote otherwise dont try remote
         forward2 = Forward().start(self.forward_to[1][0], self.forward_to[1][1])
+        forward1 = None
+        if forward2:
+            forward1 = Forward().start(self.forward_to[0][0], self.forward_to[0][1])
 
         clientsock, clientaddr = self.server.accept()
         if conf.verbose: print("\t -", clientaddr, "has connected")
 
         if forward1 and forward2:
             forwardsTuple = (forward1, forward2)
-        elif forward1:
-            forwardsTuple = (forward1,)
-        else:
-            forwardsTuple = None
-
-        if forwardsTuple:
             self.input_list.append(clientsock)
-            for forward in forwardsTuple:
-                self.input_list.append(forward)
+            self.input_list.append(forward1)
+            self.input_list.append(forward2)
             self.channel[clientsock] = forwardsTuple
             self.channel[forwardsTuple] = clientsock
         else:
@@ -188,6 +185,14 @@ class Proxy:
                 print("\t - Can't establish connection with remote server."),
                 print("\t - Closing connection with client side", clientaddr)
             clientsock.close()
+            try:
+                forward1.close()
+            except:
+                pass
+            try:
+                forward2.close()
+            except:
+                pass
 
     def on_close(self,conf):
         if conf.verbose: 
