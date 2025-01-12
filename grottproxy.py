@@ -119,7 +119,10 @@ class Proxy:
             print("IP and port information not available") 
 
         self.server.listen(200)
-        self.forward_to = (conf.growattip, conf.growattport)
+        self.forward_to = [
+            (conf.growattip, conf.growattport),
+            (conf.growattip2, conf.growattport2)
+        ]
         
     def main(self,conf):
         self.input_list.append(self.server)
@@ -143,15 +146,43 @@ class Proxy:
                 else:
                     self.on_recv(conf)
 
+    def get_active_socket_or_tuple(self):
+        possible_socket = None
+        for key in self.channel.keys():
+            if isinstance(key, tuple) and self.s in key:
+                possible_socket = self.channel[key] # returning a socket
+                break
+        if not possible_socket:
+            possible_socket = self.channel[self.s] # returning a tuple or a socket not in a tuple
+
+        return possible_socket
+
+    def get_tuple_for_socket(self, socket):
+        for key in self.channel.keys():
+            if isinstance(key, tuple) and socket in key:
+                return key
+        return socket
+
     def on_accept(self,conf):
-        forward = Forward().start(self.forward_to[0], self.forward_to[1])
+        forward1 = Forward().start(self.forward_to[0][0], self.forward_to[0][1])
+        forward2 = Forward().start(self.forward_to[1][0], self.forward_to[1][1])
+
         clientsock, clientaddr = self.server.accept()
-        if forward:
-            if conf.verbose: print("\t -", clientaddr, "has connected")
+        if conf.verbose: print("\t -", clientaddr, "has connected")
+
+        if forward1 and forward2:
+            forwardsTuple = (forward1, forward2)
+        elif forward1:
+            forwardsTuple = (forward1,)
+        else:
+            forwardsTuple = None
+
+        if forwardsTuple:
             self.input_list.append(clientsock)
-            self.input_list.append(forward)
-            self.channel[clientsock] = forward
-            self.channel[forward] = clientsock
+            for forward in forwardsTuple:
+                self.input_list.append(forward)
+            self.channel[clientsock] = forwardsTuple
+            self.channel[forwardsTuple] = clientsock
         else:
             if conf.verbose: 
                 print("\t - Can't establish connection with remote server."),
@@ -167,22 +198,41 @@ class Proxy:
                 print("\t -", "peer has disconnected")
 
         #remove objects from input_list
-        self.input_list.remove(self.s)
-        self.input_list.remove(self.channel[self.s])
-        out = self.channel[self.s]
+        tuple_or_socket = self.get_tuple_for_socket(self.s)
+        if isinstance(tuple_or_socket, tuple):
+            for forward in tuple_or_socket:
+                self.input_list.remove(forward)
+        else:
+            self.input_list.remove(tuple_or_socket)
+
+        possible_socket = self.get_active_socket_or_tuple()
+        if isinstance(possible_socket, tuple):
+            for forward in possible_socket:
+                self.input_list.remove(forward)
+        else:
+            self.input_list.remove(possible_socket)
         # close the connection with client
-        self.channel[out].close()  # equivalent to do self.s.close()
+        if isinstance(self.channel[possible_socket], tuple):
+            for forward in self.channel[possible_socket]:
+                forward.close()  # equivalent to do self.s.close()
+        else:
+            self.channel[possible_socket].close()
         # close the connection with remote server
-        self.channel[self.s].close()
+        if isinstance(possible_socket, tuple):
+            for forward in possible_socket:
+                forward.close()
+        else:
+            possible_socket.close()
         # delete both objects from channel dict
-        del self.channel[out]
-        del self.channel[self.s]
+        del self.channel[possible_socket]
+        del self.channel[self.get_tuple_for_socket(self.s)]
 
     def on_recv(self,conf):
         data = self.data      
+        possible_socket = self.get_active_socket_or_tuple()
         print("")
-        print("\t - " + "Growatt packet received:") 
-        print("\t\t ", self.channel[self.s])
+        print("\t - " + "Growatt packet received:")
+        print("\t\t ", possible_socket)
         
         #test if record is not corrupted
         vdata = "".join("{:02x}".format(n) for n in data)
@@ -232,7 +282,11 @@ class Proxy:
                 return
 
         # send data to destination
-        self.channel[self.s].send(data)
+        if isinstance(possible_socket, tuple):
+            for forward in possible_socket:
+                forward.send(data)
+        else:
+            possible_socket.send(data)
         if len(data) > conf.minrecl :
             #process received data
             procdata(conf,data)    
